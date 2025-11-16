@@ -42,4 +42,4 @@ add_action( 'plugins_loaded', function () {
     }
 } );
 
-require_once SADRAN_PLUGIN_DIR . 'admin/AdminUI.php';
+

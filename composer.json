@@ -1,6 +1,6 @@
 {
-    "name": "sadran-security/sadran-security",
-    "description": "Sadran Security - A next-generation WordPress security framework.",
+    "name": "asaad2691/sadran-security",
+    "description": "Sadran Security - WordPress hardening, scanners and remediation",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
     "autoload": {

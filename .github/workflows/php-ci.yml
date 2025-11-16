@@ -1,0 +1,54 @@
+name: PHP / WP CI
+
+
+on:
+push:
+branches: [ main ]
+pull_request:
+branches: [ main ]
+
+
+jobs:
+php-cs:
+runs-on: ubuntu-latest
+strategy:
+matrix:
+php: [ '7.4', '8.0', '8.1' ]
+
+
+steps:
+- uses: actions/checkout@v4
+- name: Set up PHP
+uses: shivammathur/setup-php@v2
+with:
+php-version: ${{ matrix.php }}
+coverage: none
+
+
+- name: Validate PHP syntax
+run: find . -name "*.php" -not -path "./vendor/*" -print0 | xargs -0 -n1 php -l || true
+
+
+- name: Run PHPCS (optional)
+run: |
+composer global require "squizlabs/php_codesniffer=*" || true
+~/.composer/vendor/bin/phpcs --standard=PSR12 --extensions=php includes sadran-security.php || true
+
+
+tests:
+runs-on: ubuntu-latest
+steps:
+- uses: actions/checkout@v4
+- name: Set up PHP
+uses: shivammathur/setup-php@v2
+with:
+php-version: 8.1
+
+
+- name: Setup WordPress (simple)
+run: |
+composer require --dev paulirish/wp-cli-server || true
+
+
+- name: Placeholder for future tests
+run: echo "Add unit/integration tests in .github/workflows/php-ci.yml"

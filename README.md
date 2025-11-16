@@ -1,7 +1,7 @@
 
 <<<<<<< HEAD
 <p align="center">
-  <img src="assets/branding/sadran-logo.png" width="260" />
+  <img src="./assets/branding/sadran.png" width="260" />
 </p>
 
 

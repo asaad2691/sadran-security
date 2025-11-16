@@ -1,0 +1,12 @@
+{
+    "name": "sadran-security/sadran-security",
+    "description": "Sadran Security - A next-generation WordPress security framework.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "autoload": {
+        "psr-4": {
+            "SadranSecurity\\": "includes/"
+        }
+    },
+    "require": {}
+}

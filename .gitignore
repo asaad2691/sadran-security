@@ -1,0 +1,23 @@
+# Composer
+vendor/
+composer.lock
+
+# Node
+node_modules/
+npm-debug.log
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+/dist/
+.cache/

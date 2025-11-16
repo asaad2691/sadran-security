@@ -94,7 +94,7 @@ class Core {
 
         // PROTECTION
         Hardening\UploadsProtector::instance()->deploy_protection();
-        Hardening\LoginHardener::instance()->check_common_username();
+        Hardening\LoginHardener::instance(); // handles login protection automatically
 
         // WAF
         WAF\RequestFirewall::instance();

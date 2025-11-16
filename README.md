@@ -1,3 +1,4 @@
+
 # Sadran Security
 
 Sadran Security is an open-source, next-generation WordPress security framework offering deep hardening, malware detection, integrity monitoring, login protection, and guided server-level remediation.  
@@ -119,3 +120,7 @@ This project is licensed under the **GNU General Public License v2.0 or later (G
 ## 🛡 Credits
 
 Created by the **Sadran Security Project** — a free, community-driven effort to provide real WordPress security for everyone, on every hosting platform.
+=======
+# sadran-security
+A next-generation WordPress security framework providing deep hardening, malware detection, integrity monitoring, and guided server-level remediation.
+

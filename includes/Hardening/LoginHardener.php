@@ -1,85 +1,77 @@
 <?php
 namespace SadranSecurity\Hardening;
 
-
-if (!defined('ABSPATH')) {
-exit;
-}
+if (!defined('ABSPATH')) exit;
 
 /**
-* Login hardening: rate-limiting, blocklist, enforce no-common-usernames.
-* Conservative: logs and sets transient-based blocks; doesn't change passwords.
-*/
-
+ * Login hardening: attempts counter, blocklist, honeypot injection, detect brute-force from same IP or user.
+ */
 class LoginHardener {
     private static $instance = null;
-    private $block_option = 'sadran_blocked_ips';
-
+    private $block_opt = 'sadran_blocked_ips';
+    private $fail_transient_prefix = 'sadran_fail_';
+    private $honeypot_field = 'sadran_hp';
 
     public static function instance() {
-    if (null === self::$instance) {
-    self::$instance = new self();
+        if (null === self::$instance) self::$instance = new self();
+        return self::$instance;
     }
-    return self::$instance;
-    }
-
 
     private function __construct() {
-    add_action('wp_login_failed', array($this, 'on_login_failed'));
-    add_action('wp_authenticate', array($this, 'block_on_auth'), 1);
-    add_action('wp_login', array($this, 'clear_on_success'), 10, 2);
+        add_action('login_form', [$this, 'output_honeypot']);
+        add_action('wp_login_failed', [$this, 'on_fail']);
+        add_action('wp_authenticate', [$this, 'block_on_auth'], 1);
+        add_action('wp_login', [$this, 'on_success'], 10, 2);
     }
 
-    public function on_login_failed($username) {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    $key = 'sadran_fail_' . md5($ip);
-    $fails = (int) get_transient($key);
-    $fails++;
-    set_transient($key, $fails, 15 * MINUTE_IN_SECONDS);
-
-
-    if ($fails >= 6) {
-    $blocked = (array) get_option($this->block_option, array());
-    if (!in_array($ip, $blocked)) {
-    $blocked[] = $ip;
-    update_option($this->block_option, $blocked);
-    error_log('[SadranSecurity] Blocking IP ' . $ip . ' after ' . $fails . ' failed attempts');
-    }
-    }
+    public function output_honeypot() {
+        echo '<input type="text" name="'.esc_attr($this->honeypot_field).'" value="" style="display:none" autocomplete="off" />';
     }
 
+    public function on_fail($username) {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $key = $this->fail_transient_prefix . md5($ip);
+        $fails = (int) get_transient($key);
+        $fails++;
+        set_transient($key, $fails, 15 * MINUTE_IN_SECONDS);
+
+        if ($fails >= 6) {
+            $blocked = (array) get_option($this->block_opt, []);
+            if (!in_array($ip, $blocked)) {
+                $blocked[] = $ip;
+                update_option($this->block_opt, $blocked);
+                error_log('[SadranLogin] Blocked ' . $ip);
+            }
+        }
+    }
 
     public function block_on_auth() {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-    $blocked = (array) get_option($this->block_option, array());
-    if ($ip && in_array($ip, $blocked)) {
-    wp_die('Access temporarily blocked.');
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $blocked = (array) get_option($this->block_opt, []);
+        if ($ip && in_array($ip, $blocked)) {
+            wp_die(__('Access temporarily blocked by Sadran Security', 'sadran-security'));
+        }
+
+        // Check honeypot
+        if (!empty($_REQUEST[$this->honeypot_field])) {
+            // malicious bot
+            $this->block_ip($ip);
+            wp_die(__('Access temporarily blocked', 'sadran-security'));
+        }
     }
+
+    public function block_ip($ip) {
+        if (!$ip) return;
+        $blocked = (array) get_option($this->block_opt, []);
+        if (!in_array($ip, $blocked)) {
+            $blocked[] = $ip;
+            update_option($this->block_opt, $blocked);
+        }
     }
 
-
-    public function clear_on_success($user_login, $user) {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-    if (!$ip) return;
-    $key = 'sadran_fail_' . md5($ip);
-    delete_transient($key);
+    public function on_success($user_login, $user) {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        if (!$ip) return;
+        delete_transient($this->fail_transient_prefix . md5($ip));
     }
-
-
-
-
-/**
-* Utility to check for common usernames on install; warns admin.
-*/
-
-public function check_common_username() {
-$common = array('admin','administrator','root','user');
-foreach ($common as $c) {
-if (username_exists($c)) {
-add_action('admin_notices', function() use ($c){
-echo '<div class="notice notice-warning"><p>Sadran Security: found common username "' . esc_html($c) . '" - consider renaming or removing it.</p></div>';
-});
-}
-}
-}
 }

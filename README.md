@@ -1,5 +1,10 @@
 
 <<<<<<< HEAD
+<p align="center">
+  <img src="assets/branding/sadran-logo.png" width="260" />
+</p>
+
+
 # Sadran Security
 
 Sadran Security is an open-source, next-generation WordPress security framework offering deep hardening, malware detection, integrity monitoring, login protection, and guided server-level remediation.  

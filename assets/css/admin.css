@@ -1,0 +1,19 @@
+.sadran-wrap {}
+
+.sadran-section {
+    margin-top: 20px;
+}
+
+.sadran-card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    padding: 20px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.sadran-log-list pre {
+    background: #f5f5f5;
+    padding: 10px;
+    border-radius: 4px;
+}

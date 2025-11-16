@@ -41,3 +41,5 @@ add_action( 'plugins_loaded', function () {
         SadranSecurity\Core::init( __FILE__ );
     }
 } );
+
+require_once SADRAN_PLUGIN_DIR . 'admin/AdminUI.php';

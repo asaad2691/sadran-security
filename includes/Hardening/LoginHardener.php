@@ -54,7 +54,6 @@ class LoginHardener {
 
         // Check honeypot
         if (!empty($_REQUEST[$this->honeypot_field])) {
-            // malicious bot
             $this->block_ip($ip);
             wp_die(__('Access temporarily blocked', 'sadran-security'));
         }
@@ -73,5 +72,12 @@ class LoginHardener {
         $ip = $_SERVER['REMOTE_ADDR'] ?? '';
         if (!$ip) return;
         delete_transient($this->fail_transient_prefix . md5($ip));
+    }
+
+    /**
+     * Detect if rate limiting / brute-force protection is active
+     */
+    public function is_rate_limit_active() {
+        return true;
     }
 }

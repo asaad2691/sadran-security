@@ -110,5 +110,39 @@ class Core {
         if ( defined('WP_CLI') && WP_CLI ) {
             \SadranSecurity\CLI\Commands::register();
         }
+        if (get_option('sadran_hardening_disable_file_edit', 0)) {
+            if (!defined('DISALLOW_FILE_EDIT')) {
+                define('DISALLOW_FILE_EDIT', true);
+            }
+        }
+        if (get_option('sadran_hardening_disable_xmlrpc', 0)) {
+            add_filter('xmlrpc_enabled', '__return_false');
+        }
+        if (get_option('sadran_hardening_restrict_rest', 0)) {
+            add_filter('rest_authentication_errors', function ($result) {
+                if (!is_user_logged_in()) {
+                    return new WP_Error('rest_disabled', 'REST API restricted by Sadran Security', ['status' => 401]);
+                }
+                return $result;
+            });
+        }
+        if (get_option('sadran_hardening_block_bad_ua', 0)) {
+            add_action('init', function () {
+                $bad = ['curl', 'python', 'nikto', 'fuzzer', 'scan', 'bot', 'wget'];
+        
+                $ua = strtolower($_SERVER['HTTP_USER_AGENT'] ?? '');
+        
+                foreach ($bad as $b) {
+                    if (strpos($ua, $b) !== false) {
+                        wp_die('Blocked by Sadran Security (bad user agent)', 'Blocked', ['response' => 403]);
+                    }
+                }
+            });
+        }
+        if (get_option('sadran_hardening_uploads_htaccess', 0)) {
+            \SadranSecurity\Hardening\UploadsProtector::instance()->deploy_protection();
+        }
+
+
     }
 }

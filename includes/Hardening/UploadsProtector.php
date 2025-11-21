@@ -1,8 +1,6 @@
 <?php
 namespace SadranSecurity\Hardening;
 
-use SadranSecurity as CoreNS;
-
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
@@ -71,5 +69,25 @@ class UploadsProtector {
     Require all denied
 </FilesMatch>
 HT;
+    }
+
+    /**
+     * NEW: Detect if uploads protection is active
+     */
+    public function is_protection_active() {
+        $uploads = wp_upload_dir();
+        $basedir = isset($uploads['basedir']) ? $uploads['basedir'] : false;
+        if (!$basedir) return false;
+
+        $file = $basedir . DIRECTORY_SEPARATOR . '.htaccess';
+        if (!file_exists($file)) return false;
+
+        $content = file_get_contents($file);
+
+        return (
+            strpos($content, 'Require all denied') !== false ||
+            strpos($content, 'Deny from all') !== false ||
+            strpos($content, 'block PHP execution') !== false
+        );
     }
 }

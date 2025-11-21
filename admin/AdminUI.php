@@ -16,7 +16,34 @@ class AdminUI {
         add_action('admin_menu', [$this, 'menu']);
         add_action('admin_enqueue_scripts', [$this, 'assets']);
         add_action('wp_ajax_sadran_run_scan', [$this, 'ajax_run_scan']);
+        add_action('admin_head', [$this, 'apply_dark_mode']);
+
     }
+    public function apply_dark_mode() {
+    if (get_option('sadran_ui_dark', 0)) {
+        echo '<style>
+            body.wp-admin {
+                background: #1e1e1e !important;
+                color: #e0e0e0 !important;
+            }
+            .wrap, .sadran-card {
+                background: #2a2a2a !important;
+                color: #e0e0e0 !important;
+                border-color: #444 !important;
+            }
+            .sadran-card h3, .sadran-card p {
+                color: #f0f0f0 !important;
+            }
+            #adminmenu, #adminmenu .wp-submenu {
+                background: #111 !important;
+            }
+            #adminmenu li.menu-top:hover,
+            #adminmenu li.wp-has-current-submenu {
+                background: #222 !important;
+            }
+        </style>';
+    }
+}
 
     public function menu() {
         add_menu_page(
@@ -31,14 +58,35 @@ class AdminUI {
     }
 
     public function assets() {
-        wp_enqueue_style('sadran-admin', SADRAN_PLUGIN_URL . 'assets/css/admin.css', [], '1.0');
-        wp_enqueue_script('sadran-admin-js', SADRAN_PLUGIN_URL . 'assets/js/admin.js', ['jquery'], '1.0', true);
 
+        wp_enqueue_style(
+            'sadran-admin',
+            SADRAN_PLUGIN_URL . 'assets/css/admin.css',
+            [],
+            '1.0'
+        );
+    
+        wp_enqueue_script(
+            'sadran-admin-js',
+            SADRAN_PLUGIN_URL . 'assets/js/admin.js',
+            ['jquery'],
+            '1.0',
+            true
+        );
+    
+        // For AJAX scan calls
         wp_localize_script('sadran-admin-js', 'SADRAN_AJAX', [
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('sadran_nonce')
         ]);
+    
+        // For incident export and any other PHP → JS data
+        wp_localize_script('sadran-admin-js', 'SADRAN_DATA', [
+            'incidents' => get_option('sadran_incidents', []),
+            'nonce'     => wp_create_nonce('sadran_nonce'),
+        ]);
     }
+
 
     public function render() {
         $tab = $_GET['tab'] ?? 'overview';

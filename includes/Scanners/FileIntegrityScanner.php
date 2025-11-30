@@ -1,5 +1,6 @@
 <?php
 namespace SadranSecurity\Scanners;
+use SadranSecurity\Logging\LogsDB;
 
 if (!defined('ABSPATH')) exit;
 
@@ -49,6 +50,7 @@ class FileIntegrityScanner {
     }
 
     public function run_scan() {
+        LogsDB::instance()->log('file_scan', 'File integrity scan started');
         // if baseline missing, build it and return
         if (!file_exists($this->baseline_file)) {
             $this->build_baseline();
@@ -91,9 +93,15 @@ class FileIntegrityScanner {
             // update baseline automatically but log that baseline was updated
             @file_put_contents($this->baseline_file, wp_json_encode($current));
         }
+        if (empty($changed['added']) && empty($changed['modified']) && empty($changed['removed'])) {
+            LogsDB::instance()->log('file_scan', 'No changes detected', 1);
+        }
+
     }
 
     private function report($changed) {
+        LogsDB::instance()->log('file_scan', 'File changes detected', 3, $changed);
+
         $admin = get_option('admin_email');
         $subject = 'Sadran Security - File integrity changes detected';
         $body = "Detected file changes:\n\nAdded:\n" . implode("\n", $changed['added']) .

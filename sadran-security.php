@@ -42,4 +42,7 @@ add_action( 'plugins_loaded', function () {
     }
 } );
 
+register_activation_hook(__FILE__, function() {
+    \SadranSecurity\Logging\LogsDB::instance();
+});
 

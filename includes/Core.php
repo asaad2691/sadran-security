@@ -78,6 +78,9 @@ class Core {
 
         // CLI Commands (optional)
         require_once SADRAN_PLUGIN_DIR . 'includes/CLI/Commands.php';
+        require_once SADRAN_PLUGIN_DIR . 'includes/Logging/LogsDB.php';
+        require_once SADRAN_PLUGIN_DIR . 'includes/Scanners/MalwareScanner.php';
+
     }
 
     /**
@@ -92,9 +95,14 @@ class Core {
      */
     public function boot() {
 
-        // PROTECTION
-        Hardening\UploadsProtector::instance()->deploy_protection();
-        Hardening\LoginHardener::instance(); // handles login protection automatically
+        // PROTECTION — centralized hardening manager (Phase 2)
+        Hardening\HardeningManager::instance(); // constructor registers init hook that applies protections
+        // Keep uploads protector deploy as immediate fallback (if you prefer)
+        if ( get_option('sadran_hardening_uploads_htaccess', 0) ) {
+            Hardening\UploadsProtector::instance()->deploy_protection();
+        }
+        Hardening\LoginHardener::instance(); // ensure login hooks are active
+        \SadranSecurity\Scanners\MalwareScanner::instance()->maybe_schedule();
 
         // WAF
         WAF\RequestFirewall::instance();
@@ -105,7 +113,7 @@ class Core {
 
         // ADMIN UI — THIS MAKES THE SIDEBAR MENU SHOW UP
         \SadranSecurity\Admin\AdminUI::instance();
-
+        
         // WP CLI
         if ( defined('WP_CLI') && WP_CLI ) {
             \SadranSecurity\CLI\Commands::register();

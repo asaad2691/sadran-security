@@ -13,50 +13,63 @@ class AdminUI {
     }
 
     private function __construct() {
+
+        /** ADMIN MENU + ASSETS */
         add_action('admin_menu', [$this, 'menu']);
         add_action('admin_enqueue_scripts', [$this, 'assets']);
-        add_action('wp_ajax_sadran_run_scan', [$this, 'ajax_run_scan']);
-        add_action('admin_head', [$this, 'apply_dark_mode']);
-        add_action('wp_ajax_sadran_apply_hardening', [$this, 'ajax_apply_hardening']);
 
+        
+        /** DARK MODE */
+        add_action('admin_head', [$this, 'apply_dark_mode']);
+        /** AJAX HANDLERS */
+        add_action('wp_ajax_sadran_run_scan', [$this, 'ajax_run_scan']);
+        add_action('wp_ajax_sadran_run_malware', [$this, 'ajax_run_malware']);
+        add_action('wp_ajax_sadran_apply_hardening', [$this, 'ajax_apply_hardening']);
     }
     
-    // handler
-    public function ajax_apply_hardening() {
+    /* ============================================================
+       MALWARE SCANNER AJAX
+    ============================================================ */
+    public function ajax_run_malware() {
+
         check_ajax_referer('sadran_nonce');
+
         if (! current_user_can('manage_options')) {
             wp_send_json_error('Not allowed');
         }
-        $ok = \SadranSecurity\Hardening\HardeningManager::instance()->apply_all_now();
-        if ($ok) wp_send_json_success('Applied');
-        wp_send_json_error('Failed');
-    }
-    public function apply_dark_mode() {
-    if (get_option('sadran_ui_dark', 0)) {
-        echo '<style>
-            body.wp-admin {
-                background: #1e1e1e !important;
-                color: #e0e0e0 !important;
-            }
-            .wrap, .sadran-card {
-                background: #2a2a2a !important;
-                color: #e0e0e0 !important;
-                border-color: #444 !important;
-            }
-            .sadran-card h3, .sadran-card p {
-                color: #f0f0f0 !important;
-            }
-            #adminmenu, #adminmenu .wp-submenu {
-                background: #111 !important;
-            }
-            #adminmenu li.menu-top:hover,
-            #adminmenu li.wp-has-current-submenu {
-                background: #222 !important;
-            }
-        </style>';
-    }
-}
 
+        if (class_exists('SadranSecurity\\Scanners\\MalwareScanner')) {
+
+            $scan = \SadranSecurity\Scanners\MalwareScanner::instance()->run_scan();
+            wp_send_json_success($scan);
+        }
+
+        wp_send_json_error('Malware scanner missing');
+    }
+
+
+    /* ============================================================
+       APPLY HARDENING (Button)
+    ============================================================ */
+    public function ajax_apply_hardening() {
+        check_ajax_referer('sadran_nonce');
+
+        if (! current_user_can('manage_options')) {
+            wp_send_json_error('Not allowed');
+        }
+
+        if (!class_exists('\SadranSecurity\Hardening\HardeningManager')) {
+            wp_send_json_error('HardeningManager missing');
+        }
+
+        $ok = \SadranSecurity\Hardening\HardeningManager::instance()->apply_all_now();
+        $ok ? wp_send_json_success('Applied') : wp_send_json_error('Failed');
+    }
+
+
+    /* ============================================================
+       ADMIN MENU / RENDER
+    ============================================================ */
     public function menu() {
         add_menu_page(
             'Sadran Security',
@@ -69,39 +82,10 @@ class AdminUI {
         );
     }
 
-    public function assets() {
-
-        wp_enqueue_style(
-            'sadran-admin',
-            SADRAN_PLUGIN_URL . 'assets/css/admin.css',
-            [],
-            '1.0'
-        );
-    
-        wp_enqueue_script(
-            'sadran-admin-js',
-            SADRAN_PLUGIN_URL . 'assets/js/admin.js',
-            ['jquery'],
-            '1.0',
-            true
-        );
-    
-        // For AJAX scan calls
-        wp_localize_script('sadran-admin-js', 'SADRAN_AJAX', [
-            'ajaxurl' => admin_url('admin-ajax.php'),
-            'nonce'   => wp_create_nonce('sadran_nonce')
-        ]);
-    
-        // For incident export and any other PHP → JS data
-        wp_localize_script('sadran-admin-js', 'SADRAN_DATA', [
-            'incidents' => get_option('sadran_incidents', []),
-            'nonce'     => wp_create_nonce('sadran_nonce'),
-        ]);
-    }
-
-
     public function render() {
+
         $tab = $_GET['tab'] ?? 'overview';
+
         include SADRAN_PLUGIN_DIR . "admin/tabs/header.php";
 
         switch ($tab) {
@@ -129,17 +113,70 @@ class AdminUI {
         echo "</div>";
     }
 
+    /* ============================================================
+       FILE INTEGRITY SCAN AJAX
+    ============================================================ */
     public function ajax_run_scan() {
         check_ajax_referer('sadran_nonce');
 
-        if (!current_user_can('manage_options')) {
+        if (! current_user_can('manage_options')) {
             wp_send_json_error('Not allowed');
         }
 
         if (class_exists('SadranSecurity\\Scanners\\FileIntegrityScanner')) {
             \SadranSecurity\Scanners\FileIntegrityScanner::instance()->run_scan();
+            wp_send_json_success('Integrity scan completed.');
         }
 
-        wp_send_json_success('Scan completed.');
+        wp_send_json_error('FileIntegrityScanner missing');
     }
+
+
+    /* ============================================================
+       ASSETS
+    ============================================================ */
+    public function assets() {
+
+        wp_enqueue_style(
+            'sadran-admin',
+            SADRAN_PLUGIN_URL . 'assets/css/admin.css',
+            [],
+            '1.0'
+        );
+
+        wp_enqueue_script(
+            'sadran-admin-js',
+            SADRAN_PLUGIN_URL . 'assets/js/admin.js',
+            ['jquery'],
+            '1.0',
+            true
+        );
+
+        wp_localize_script('sadran-admin-js', 'SADRAN_AJAX', [
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('sadran_nonce')
+        ]);
+
+        wp_localize_script('sadran-admin-js', 'SADRAN_DATA', [
+            'incidents' => get_option('sadran_incidents', []),
+            'nonce'     => wp_create_nonce('sadran_nonce'),
+        ]);
+    }
+
+
+    /* ============================================================
+       ADMIN DARK MODE
+    ============================================================ */
+    public function apply_dark_mode() {
+        if (! get_option('sadran_ui_dark', 0)) return;
+
+        echo '<style>
+            body.wp-admin { background:#1e1e1e !important; color:#e0e0e0 !important; }
+            .wrap, .sadran-card { background:#2a2a2a !important; color:#e0e0e0 !important; border-color:#444 !important; }
+            .sadran-card h3, .sadran-card p { color:#f0f0f0 !important; }
+            #adminmenu, #adminmenu .wp-submenu { background:#111 !important; }
+            #adminmenu li.menu-top:hover, #adminmenu li.wp-has-current-submenu { background:#222 !important; }
+        </style>';
+    }
+
 }

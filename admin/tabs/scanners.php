@@ -1,103 +1,128 @@
 <?php
-use SadranSecurity\Scanners\FileIntegrityScanner;
-use SadranSecurity\Scanners\PluginTamperScanner;
+use SadranSecurity\Logging\LogsDB;
 
 if (!defined('ABSPATH')) exit;
 
-// Load last scan results
-$incidents = get_option('sadran_incidents', []);
-$last_scan = get_option('sadran_last_scan', 'Never');
+// Fetch logs
+$logs = LogsDB::instance()->get_recent(200);
 
-// Parse file integrity results
-$last_file_scan = $incidents['file_integrity'] ?? [];
-$modified = $last_file_scan['modified'] ?? [];
-$added    = $last_file_scan['added'] ?? [];
-$removed  = $last_file_scan['missing'] ?? [];
+// Buckets
+$file_changes = [];
+$malware_hits = [];
+$tamper_hits = [];
+
+foreach ($logs as $log) {
+    switch ($log->type) {
+        case 'file_scan':
+            $file_changes[] = $log;
+            break;
+
+        case 'malware_scan':
+            $malware_hits[] = $log;
+            break;
+
+        case 'plugin_tamper':
+            $tamper_hits[] = $log;
+            break;
+    }
+}
+
+$last_file_scan    = $file_changes[0]->time ?? 'Never';
+$last_malware_scan = $malware_hits[0]->time ?? 'Never';
+$last_tamper_scan  = $tamper_hits[0]->time ?? 'Never';
 ?>
 
 <div class="sadran-section">
     <h2>Scanners</h2>
 
-    <!-- FILE INTEGRITY SCANNER -->
+    <!-- FILE INTEGRITY -->
     <div class="sadran-card">
         <h3>File Integrity Scanner</h3>
-        <p>Checks core, plugin and theme files for tampering.</p>
+        <p>Checks plugins, themes, and core for changes.</p>
 
         <button class="button button-primary" id="sadran-run-scan">
-            Run Full Scan
+            Run Integrity Scan
         </button>
 
-        <div id="sadran-scan-result" style="margin-top:10px; font-weight:bold;"></div>
+        <div id="sadran-scan-result" class="sadran-scan-output"></div>
 
         <hr>
+        <h4>Last Scan: <?= esc_html($last_file_scan); ?></h4>
 
-        <h4>Last Scan: <?= esc_html($last_scan); ?></h4>
-
-        <?php if (!empty($modified) || !empty($added) || !empty($removed)): ?>
-            <div class="sadran-scan-summary">
-
-                <?php if (!empty($modified)): ?>
-                    <h5>Modified Files</h5>
-                    <ul>
-                    <?php foreach ($modified as $file): ?>
-                        <li style="color:#c0392b;">⚠ <?= esc_html($file); ?></li>
-                    <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-
-                <?php if (!empty($added)): ?>
-                    <h5>New/Suspicious Files</h5>
-                    <ul>
-                    <?php foreach ($added as $file): ?>
-                        <li style="color:#f39c12;">⚠ <?= esc_html($file); ?></li>
-                    <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-
-                <?php if (!empty($removed)): ?>
-                    <h5>Missing Files</h5>
-                    <ul>
-                    <?php foreach ($removed as $file): ?>
-                        <li style="color:#8e44ad;">⚠ <?= esc_html($file); ?></li>
-                    <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-
-            </div>
+        <?php if (!empty($file_changes)): ?>
+            <ul class="sadran-log-list">
+                
+                <?php foreach ($file_changes as $row): ?>
+                    <li>
+                        <strong><?= esc_html(date('Y-m-d H:i:s', $row->time)); ?></strong><br>
+                        <?= esc_html($row->message); ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
         <?php else: ?>
-            <p>No threats detected in last scan.</p>
+            <p>No file integrity issues detected.</p>
         <?php endif; ?>
     </div>
 
-    <!-- PLUGIN TAMPER SCANNER -->
+
+    <!-- MALWARE SCANNER -->
+    <div class="sadran-card">
+        <h3>Malware Scanner</h3>
+        <p>Scans uploads, plugins, and themes for malware.</p>
+
+        <button class="button button-secondary" id="sadran-run-malware">
+            Run Malware Scan
+        </button>
+
+        <div id="sadran-malware-result" class="sadran-scan-output"></div>
+
+        <hr>
+        <h4>Last Scan: <?= esc_html($last_malware_scan); ?></h4>
+
+        <?php if (!empty($malware_hits)): ?>
+            <ul class="sadran-log-list">
+                <?php foreach ($malware_hits as $row): ?>
+                    <li>
+                        <strong><?= esc_html(date('Y-m-d H:i:s', $row->time)); ?></strong><br>
+                        <?= esc_html($row->message); ?>
+                        <?php if (!empty($row->meta)): ?>
+                            <pre class="sadran-json"><?= esc_html($row->meta); ?></pre>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php else: ?>
+            <p>No malware detected.</p>
+        <?php endif; ?>
+    </div>
+
+
+    <!-- PLUGIN TAMPER -->
     <div class="sadran-card">
         <h3>Plugin Tamper Scanner</h3>
-        <p>Automatically compares plugin files to detect unauthorized changes.</p>
+        <p>Detects suspicious or tampered plugins.</p>
 
-        <h4>Last Tamper Check:</h4>
-        <p><?= esc_html(get_option('sadran_last_tamper_check', 'Runs automatically')); ?></p>
+        <h4>Last Check: <?= esc_html($last_tamper_scan); ?></h4>
 
-        <?php
-        $tamper_incidents = $incidents['plugin_tamper'] ?? [];
-        if (!empty($tamper_incidents)):
-        ?>
-            <h5>Detected Issues</h5>
-            <ul>
-            <?php foreach ($tamper_incidents as $issue): ?>
-                <li style="color:#e74c3c;">⚠ <?= esc_html($issue); ?></li>
-            <?php endforeach; ?>
+        <?php if (!empty($tamper_hits)): ?>
+            <ul class="sadran-log-list">
+                <?php foreach ($tamper_hits as $row): ?>
+                    <li>
+                        <strong><?= esc_html(date('Y-m-d H:i:s', $row->time)); ?></strong><br>
+                        <?= esc_html($row->message); ?>
+                    </li>
+                <?php endforeach; ?>
             </ul>
         <?php else: ?>
             <p>No plugin tampering detected.</p>
         <?php endif; ?>
     </div>
+
 </div>
 
 <style>
-.sadran-card ul {
-    margin-left: 20px;
-}
-.sadran-card li {
-    margin-bottom: 3px;
-}
+.sadran-scan-output { margin-top:10px; font-weight:bold; }
+.sadran-log-list { margin-left:15px; padding-left:10px; border-left:2px solid #444; }
+.sadran-log-list li { margin-bottom:10px; }
+.sadran-json { background:#111; padding:8px; margin-top:5px; border-radius:4px; font-size:12px; }
 </style>

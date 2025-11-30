@@ -17,7 +17,19 @@ class AdminUI {
         add_action('admin_enqueue_scripts', [$this, 'assets']);
         add_action('wp_ajax_sadran_run_scan', [$this, 'ajax_run_scan']);
         add_action('admin_head', [$this, 'apply_dark_mode']);
+        add_action('wp_ajax_sadran_apply_hardening', [$this, 'ajax_apply_hardening']);
 
+    }
+    
+    // handler
+    public function ajax_apply_hardening() {
+        check_ajax_referer('sadran_nonce');
+        if (! current_user_can('manage_options')) {
+            wp_send_json_error('Not allowed');
+        }
+        $ok = \SadranSecurity\Hardening\HardeningManager::instance()->apply_all_now();
+        if ($ok) wp_send_json_success('Applied');
+        wp_send_json_error('Failed');
     }
     public function apply_dark_mode() {
     if (get_option('sadran_ui_dark', 0)) {

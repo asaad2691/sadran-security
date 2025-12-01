@@ -31,8 +31,84 @@ class AdminUI {
         add_action('wp_ajax_sadran_clear_logs', [$this, 'ajax_clear_logs']);
         add_action('wp_ajax_sadran_filter_logs', [$this, 'ajax_filter_logs']);
         add_action('wp_ajax_sadran_dashboard_poll', [$this, 'ajax_dashboard_poll']);
+        add_action('wp_ajax_sadran_malware_quarantine', [$this, 'sadran_malware_quarantine']);
+        add_action('wp_ajax_sadran_malware_delete', [$this, 'sadran_malware_delete']);
 
     }
+    public function sadran_malware_quarantine() {
+        check_ajax_referer('sadran_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Not allowed');
+        }
+
+        $file = sanitize_text_field($_POST['file'] ?? '');
+
+        if (!$file || strpos($file, '..') !== false) {
+            wp_send_json_error('Invalid file');
+        }
+
+        $abs = ABSPATH . ltrim($file, '/');
+
+        if (!file_exists($abs)) {
+            wp_send_json_error('File does not exist: ' . $file);
+        }
+
+        $dir = WP_CONTENT_DIR . '/uploads/sadran_quarantine';
+
+        if (!is_dir($dir)) {
+            wp_mkdir_p($dir);
+        }
+
+        $dest = $dir . '/' . md5($abs . time()) . '_' . basename($abs);
+
+        if (!@rename($abs, $dest)) {
+            wp_send_json_error('Unable to move file to quarantine');
+        }
+
+        \SadranSecurity\Logging\LogsDB::instance()->log(
+            'malware_action',
+            'File quarantined',
+            2,
+            ['src'=>$file, 'dest'=>str_replace(ABSPATH, '', $dest)]
+        );
+
+        wp_send_json_success('Quarantined successfully');
+    }
+
+    public function sadran_malware_delete() {
+        check_ajax_referer('sadran_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Not allowed');
+        }
+
+        $file = sanitize_text_field($_POST['file'] ?? '');
+
+        if (!$file || strpos($file, '..') !== false) {
+            wp_send_json_error('Invalid file');
+        }
+
+        $abs = ABSPATH . ltrim($file, '/');
+
+        if (!file_exists($abs)) {
+            wp_send_json_error('File does not exist: ' . $file);
+        }
+
+        if (!@unlink($abs)) {
+            wp_send_json_error('Unable to delete file');
+        }
+
+        \SadranSecurity\Logging\LogsDB::instance()->log(
+            'malware_action',
+            'File deleted',
+            3,
+            ['file' => $file]
+        );
+
+        wp_send_json_success('File deleted');
+    }
+
 
     public function ajax_dashboard_poll() {
         check_ajax_referer('sadran_nonce');

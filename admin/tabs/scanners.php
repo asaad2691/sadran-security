@@ -51,7 +51,7 @@ $last_tamper_scan  = $tamper_hits[0]->time ?? 'Never';
 
         <?php if (!empty($file_changes)): ?>
             <ul class="sadran-log-list">
-                
+
                 <?php foreach ($file_changes as $row): ?>
                     <li>
                         <strong><?= esc_html(date('Y-m-d H:i:s', $row->time)); ?></strong><br>
@@ -117,7 +117,7 @@ $last_tamper_scan  = $tamper_hits[0]->time ?? 'Never';
             <p>No plugin tampering detected.</p>
         <?php endif; ?>
     </div>
-
+    
 </div>
 
 <style>

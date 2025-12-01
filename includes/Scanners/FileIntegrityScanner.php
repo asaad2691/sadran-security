@@ -50,10 +50,13 @@ class FileIntegrityScanner {
     }
 
     public function run_scan() {
-        LogsDB::instance()->log('file_scan', 'File integrity scan started');
+        // start log
+        LogsDB::instance()->log('file_scan', 'File integrity scan started', 1, []);
+
         // if baseline missing, build it and return
         if (!file_exists($this->baseline_file)) {
             $this->build_baseline();
+            LogsDB::instance()->log('file_scan', 'Baseline missing - created baseline', 1, ['baseline_created' => true]);
             return;
         }
 
@@ -75,42 +78,71 @@ class FileIntegrityScanner {
         }
 
         $changed = ['modified' => [], 'added' => [], 'removed' => []];
+
         // detect modifications and additions
         foreach ($current as $p => $h) {
             if (!isset($baseline[$p])) {
-                $changed['added'][] = $p;
+                $changed['added'][$p] = ['hash' => $h];
             } elseif ($baseline[$p] !== $h) {
-                $changed['modified'][] = $p;
+                $changed['modified'][$p] = [
+                    'old_hash' => $baseline[$p],
+                    'new_hash' => $h,
+                ];
             }
         }
         // detect removals
         foreach ($baseline as $p => $h) {
-            if (!isset($current[$p])) $changed['removed'][] = $p;
+            if (!isset($current[$p])) $changed['removed'][$p] = ['old_hash' => $h];
         }
 
-        if (!empty($changed['added']) || !empty($changed['modified']) || !empty($changed['removed'])) {
+        $has_changes = !empty($changed['added']) || !empty($changed['modified']) || !empty($changed['removed']);
+
+        if ($has_changes) {
             $this->report($changed);
+
             // update baseline automatically but log that baseline was updated
             @file_put_contents($this->baseline_file, wp_json_encode($current));
+            LogsDB::instance()->log('file_scan', 'Baseline updated after changes', 1, ['updated' => true]);
+        } else {
+            // no changes
+            $stats = ['scanned' => count($current), 'added' => 0, 'modified' => 0, 'removed' => 0];
+            LogsDB::instance()->log('file_scan', 'No changes detected', 1, $stats);
         }
-        if (empty($changed['added']) && empty($changed['modified']) && empty($changed['removed'])) {
-            LogsDB::instance()->log('file_scan', 'No changes detected', 1);
-        }
-
     }
 
     private function report($changed) {
-        LogsDB::instance()->log('file_scan', 'File changes detected', 3, $changed);
+        // Prepare human message and meta
+        $added = array_keys($changed['added']);
+        $modified = array_keys($changed['modified']);
+        $removed = array_keys($changed['removed']);
 
+        $meta = [
+            'time' => time(),
+            'added' => $changed['added'],
+            'modified' => $changed['modified'],
+            'removed' => $changed['removed'],
+            'counts' => [
+                'added' => count($added),
+                'modified' => count($modified),
+                'removed' => count($removed),
+            ]
+        ];
+
+        // Log to LogsDB with detailed meta
+        LogsDB::instance()->log('file_scan', 'File changes detected', 3, $meta);
+
+        // Email admin summary (kept short)
         $admin = get_option('admin_email');
         $subject = 'Sadran Security - File integrity changes detected';
-        $body = "Detected file changes:\n\nAdded:\n" . implode("\n", $changed['added']) .
-                 "\n\nModified:\n" . implode("\n", $changed['modified']) .
-                 "\n\nRemoved:\n" . implode("\n", $changed['removed']);
+        $body = "Detected file changes:\n\nAdded:\n" . implode("\n", $added) .
+                 "\n\nModified:\n" . implode("\n", $modified) .
+                 "\n\nRemoved:\n" . implode("\n", $removed);
         error_log('[SadranScanner] ' . substr($body, 0, 1000));
         @wp_mail($admin, $subject, $body);
+
+        // store incident snapshot
         $inc = (array) get_option('sadran_incidents', []);
-        $inc[] = ['time' => time(), 'type' => 'file_integrity', 'detail' => $changed];
+        $inc[] = ['time' => time(), 'type' => 'file_integrity', 'detail' => $meta];
         update_option('sadran_incidents', $inc);
     }
 }
